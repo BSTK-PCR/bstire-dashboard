@@ -826,7 +826,8 @@ elif page == "대시보드":
                         barmode="group", title="5월 vs 6월 비교",
                         color_discrete_map={"5월": "#374151", "6월": "#E2231A"},
                     )
-                    fig2.update_xaxes(tickangle=0)
+                    fig2.update_xaxes(tickangle=-45, tickfont=dict(size=9))
+                    fig2.update_layout(margin=dict(b=120))
                     st.plotly_chart(dark_layout(fig2), use_container_width=True)
 
         if "sel_dept" in st.session_state:
