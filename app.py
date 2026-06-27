@@ -290,6 +290,19 @@ section[data-testid="stSidebar"] {
 .act-main-row td.act-val { color: #34d399 !important; }
 .act-sub-row td { background: #131a13; color: #9ca3af; font-size: 11px; }
 .asp-row td { background: #1a1a2e; color: #d1d5db; }
+
+/* ── 업로드 컬럼 타이틀 고정 높이 (4컬럼 정렬 일치) ── */
+.upload-col-title {
+    min-height: 60px;
+    font-family: 'Barlow Condensed', 'Noto Sans KR', sans-serif;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    line-height: 1.3;
+    padding: 4px 0 10px 0;
+    display: flex;
+    align-items: flex-start;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -521,7 +534,7 @@ def parse_y26_plan(raw: bytes) -> dict | None:
 def render_y26_summary(y26: dict) -> None:
     """Y26 Plan 요약 테이블 렌더링."""
     if not y26:
-        st.info("발주 파일이 없습니다. '파일 업로드'에서 발주 시트를 업로드하세요.")
+        st.info("발주 파일이 없습니다. '파일 업로드'에서 오더 시트를 업로드하세요.")
         return
 
     PERIODS = y26["periods"]
@@ -861,7 +874,7 @@ with st.sidebar:
     for key, label, local in [
         ("sales_raw",  "영업 데이터", LOCAL_SALES),
         ("pcr_raw",    "PCR 매출",   LOCAL_PCR),
-        ("order_raw",  "발주 시트",   LOCAL_ORDER),
+        ("order_raw",  "오더 시트",   LOCAL_ORDER),
         ("price_raw",  "가격표",      LOCAL_PRICE),
     ]:
         if key in st.session_state:
@@ -888,7 +901,7 @@ if page == "파일 업로드":
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        st.subheader("영업별 할인 현황")
+        st.markdown('<div class="upload-col-title">영업별 할인 현황</div>', unsafe_allow_html=True)
         # 현재 상태 표시
         if "sales_raw" in st.session_state:
             st.markdown(
@@ -921,7 +934,7 @@ if page == "파일 업로드":
                 st.rerun()
 
     with col2:
-        st.subheader("월별 매출현황 (PCR)")
+        st.markdown('<div class="upload-col-title">월별 매출현황 (PCR)</div>', unsafe_allow_html=True)
         # 현재 상태 표시
         if "pcr_raw" in st.session_state:
             st.markdown(
@@ -956,7 +969,7 @@ if page == "파일 업로드":
                 st.rerun()
 
     with col3:
-        st.subheader("발주 시트 (Jul26)")
+        st.markdown('<div class="upload-col-title">오더 시트</div>', unsafe_allow_html=True)
         if "order_raw" in st.session_state:
             st.markdown(
                 '<div class="upload-status-card">'
@@ -974,7 +987,7 @@ if page == "파일 업로드":
                 unsafe_allow_html=True,
             )
         st.caption("파일명: PCR - Jul26 prod order sheet_*.xlsx · 시트: Y26 Plan (2)")
-        up_order = st.file_uploader("발주 시트 선택", type=["xlsx"], key="up_order")
+        up_order = st.file_uploader("오더 시트 선택", type=["xlsx"], key="up_order")
         if up_order:
             raw = up_order.read()
             st.session_state["order_raw"] = raw
@@ -990,7 +1003,7 @@ if page == "파일 업로드":
                 st.rerun()
 
     with col4:
-        st.subheader("가격표 (2026)")
+        st.markdown('<div class="upload-col-title">가격표 (2026)</div>', unsafe_allow_html=True)
         if "price_raw" in st.session_state:
             st.markdown(
                 '<div class="upload-status-card">'
@@ -1072,7 +1085,7 @@ elif page == "대시보드":
 
     # ── 탭0: 사업 실적 요약 ───────────────────────────────────
     with tab0:
-        st.markdown("#### 2026 PCR 사업 실적 요약 (Y26 Plan vs ACT/Fcst)")
+        st.markdown("#### 2026 Monthly Summary")
         render_y26_summary(y26)
 
     # ── 탭1: 이익부서 ─────────────────────────────────────────
@@ -1355,8 +1368,11 @@ elif page == "대시보드":
             )
             fig_rate.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
             fig_rate.add_vline(
-                x=100, line_dash="dash", line_color="#ffffff",
-                opacity=0.35, annotation_text="100%"
+                x=100, line_dash="dash", line_color="#ffffff", opacity=0.35,
+                annotation_text="100%",
+                annotation_position="top left",
+                annotation_font_size=10,
+                annotation_font_color="#9ca3af",
             )
             chart_h = max(420, len(sorted_rate) * 26)
             st.plotly_chart(dark_layout(fig_rate, height=chart_h), use_container_width=True)
