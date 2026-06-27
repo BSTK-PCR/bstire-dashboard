@@ -26,7 +26,6 @@ def _logo_b64() -> str:
     except FileNotFoundError:
         return ""
 
-@st.cache_data(show_spinner=False)
 def _logo4_b64() -> str:
     try:
         with open("logo4.png", "rb") as f:
