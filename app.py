@@ -247,6 +247,49 @@ section[data-testid="stSidebar"] {
     border: 1px solid #1f2937 !important;
     border-radius: 6px !important;
 }
+
+/* ── Y26 사업실적 요약 테이블 ── */
+.summary-wrap { overflow-x: auto; margin: 8px 0; }
+.summary-table {
+    width: 100%; border-collapse: collapse;
+    font-family: 'Barlow', 'Noto Sans KR', sans-serif;
+    font-size: 12px; color: #e5e7eb;
+}
+.summary-table th {
+    background: #1f2937; color: #9ca3af;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
+    padding: 7px 12px; border: 1px solid #374151;
+    text-align: center; white-space: nowrap;
+}
+.summary-table th.col-jun { background:#78350f !important; color:#fde68a !important; }
+.summary-table td {
+    padding: 5px 12px; border: 1px solid #1f2937;
+    text-align: right; white-space: nowrap;
+}
+.summary-table td.row-label {
+    text-align: left; font-weight: 700; color: #f3f4f6;
+    background: #161d2e; min-width: 80px;
+}
+.summary-table td.row-type {
+    text-align: left; color: #9ca3af; font-size: 11px;
+    background: #0f1724; min-width: 90px;
+}
+.summary-table td.col-jun {
+    background: rgba(245,158,11,0.12) !important;
+    color: #fbbf24 !important; font-weight: 600;
+}
+.section-header-row td {
+    background: #E2231A !important; color: #fff !important;
+    font-weight: 700; font-size: 11px; letter-spacing: 0.8px;
+    text-align: left !important; padding: 5px 12px;
+}
+.py-row td { background: #111827; color: #6b7280; font-size: 11px; }
+.ob-row td { background: #1a2234; color: #d1d5db; }
+.rf-row td { background: #1e293b; color: #d1d5db; }
+.act-main-row td { background: #1c2b1c; color: #f9fafb; font-weight: 700; font-size: 13px; }
+.act-main-row td.act-val { color: #34d399 !important; }
+.act-sub-row td { background: #131a13; color: #9ca3af; font-size: 11px; }
+.asp-row td { background: #1a1a2e; color: #d1d5db; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -302,8 +345,12 @@ SUPABASE = _get_supabase()
 BUCKET = "xlsx-data"
 SALES_KEY = "sales_latest.xlsx"
 PCR_KEY = "pcr_latest.xlsx"
+ORDER_KEY = "order_latest.xlsx"
+PRICE_KEY = "price_latest.xlsx"
 LOCAL_SALES = "data/sales data_260627.xlsx"
 LOCAL_PCR = "data/(PCR) Jun sales data_260626_FCST_V2.xlsx"
+LOCAL_ORDER = "data/PCR - Jul26 prod order sheet_Final.xlsx"
+LOCAL_PRICE = "data/2026 브리지스톤 PCR 타이어 가격표_Final.xlsx"
 
 
 def _supabase_upload(raw: bytes, filename: str) -> bool:
@@ -422,6 +469,169 @@ def parse_main_targets(raw: bytes) -> pd.DataFrame:
     return out.dropna(subset=["대리점"])
 
 
+@st.cache_data(show_spinner=False)
+def parse_y26_plan(raw: bytes) -> dict | None:
+    """Y26 Plan (2) 시트에서 분기별 사업실적 요약 파싱."""
+    try:
+        df = pd.read_excel(BytesIO(raw), sheet_name="Y26 Plan (2)", header=None)
+    except Exception:
+        return None
+
+    PERIODS = ["1Q", "Apr", "May", "Jun", "2Q", "1H TTL", "3Q", "4Q", "2H TTL", "FY TTL"]
+    # data[start:] 기준 Jan=0 상대 오프셋 (start 값과 무관하게 동일)
+    # Jan=0, Feb=1, Mar=2, 1Q=3, Apr=4, May=5, Jun=6, 2Q=7, 1H TTL=8,
+    # Jul=9, Aug=10, Sep=11, 3Q=12, Oct=13, Nov=14, Dec=15, 4Q=16, 2H TTL=17, FY TTL=18
+    REL_IDX = {"1Q":3,"Apr":4,"May":5,"Jun":6,"2Q":7,"1H TTL":8,"3Q":12,"4Q":16,"2H TTL":17,"FY TTL":18}
+
+    def row(i):
+        return df.iloc[i].dropna().tolist()
+
+    def extract(row_data, start):
+        data = row_data[start:]
+        return {p: (data[REL_IDX[p]] if REL_IDX[p] < len(data) else None) for p in PERIODS}
+
+    try:
+        return {
+            "periods": PERIODS,
+            "py_act_qty":    extract(row(1),  2),
+            "volume": {
+                "ob":       extract(row(5),  2),
+                "rf":       extract(row(6),  2),
+                "act":      extract(row(9),  2),
+                "pct_ob":   extract(row(11), 1),
+                "delta_ob": extract(row(12), 1),
+                "pct_py":   extract(row(13), 1),
+            },
+            "amount": {
+                "ob":       extract(row(16), 2),
+                "rf":       extract(row(17), 2),
+                "act":      extract(row(20), 2),
+                "pct_ob":   extract(row(22), 1),
+                "delta_ob": extract(row(23), 1),
+            },
+            "asp": {
+                "ob":  extract(row(25), 2),
+                "act": extract(row(26), 1),
+            },
+        }
+    except Exception:
+        return None
+
+
+def render_y26_summary(y26: dict) -> None:
+    """Y26 Plan 요약 테이블 렌더링."""
+    if not y26:
+        st.info("발주 파일이 없습니다. '파일 업로드'에서 발주 시트를 업로드하세요.")
+        return
+
+    PERIODS = y26["periods"]
+
+    def _qty(v):
+        try: return f"{int(round(float(v))):,}"
+        except: return "—"
+
+    def _pct(v):
+        try:
+            f = float(v)
+            return f"{(f*100 if f <= 2 else f):.1f}%"
+        except: return "—"
+
+    def _delta(v, scale=1):
+        try:
+            f = float(v) / scale
+            return ("+" if f >= 0 else "") + f"{int(round(f)):,}"
+        except: return "—"
+
+    def _amt(v):
+        try: return f"{int(round(float(v)/1e6)):,}"
+        except: return "—"
+
+    def cells(d, fn, extra="", scale=1):
+        out = ""
+        for p in PERIODS:
+            v = d.get(p)
+            jcls = " col-jun" if p == "Jun" else ""
+            ecls = (" " + extra) if (extra and p != "Jun") else ""
+            if extra == "act-val" and p == "Jun":
+                ecls = " act-val"
+            val = fn(v) if scale == 1 else _delta(v, scale)
+            out += f'<td class="{jcls}{ecls}">{val}</td>'
+        return out
+
+    NC = 2 + len(PERIODS)
+    vol, amt, asp = y26["volume"], y26["amount"], y26["asp"]
+
+    head = "".join(
+        f'<th class="{"col-jun" if p=="Jun" else ""}">{p}</th>' for p in PERIODS
+    )
+    html = f"""
+<div class="summary-wrap">
+<table class="summary-table">
+<thead><tr>
+  <th style="text-align:left">구분</th><th style="text-align:left">항목</th>
+  {head}
+</tr></thead>
+<tbody>
+<tr class="py-row">
+  <td class="row-label">25 Act</td><td class="row-type">Q'ty</td>
+  {cells(y26["py_act_qty"], _qty)}
+</tr>
+<tr class="section-header-row"><td colspan="{NC}">Volume : pcs</td></tr>
+<tr class="ob-row">
+  <td class="row-label">OB</td><td class="row-type">Q'ty</td>
+  {cells(vol["ob"], _qty)}
+</tr>
+<tr class="rf-row">
+  <td class="row-label">RF</td><td class="row-type">Q'ty</td>
+  {cells(vol["rf"], _qty)}
+</tr>
+<tr class="act-main-row">
+  <td class="row-label" rowspan="4">ACT/Fcst</td><td class="row-type">Q'ty</td>
+  {cells(vol["act"], _qty, "act-val")}
+</tr>
+<tr class="act-sub-row">
+  <td class="row-type">% vs OB</td>{cells(vol["pct_ob"], _pct)}
+</tr>
+<tr class="act-sub-row">
+  <td class="row-type">+/- vs OB</td>{cells(vol["delta_ob"], _delta)}
+</tr>
+<tr class="act-sub-row">
+  <td class="row-type">% vs PY</td>{cells(vol["pct_py"], _pct)}
+</tr>
+<tr class="section-header-row"><td colspan="{NC}">Net Amount : MKkrw</td></tr>
+<tr class="ob-row">
+  <td class="row-label">OB</td><td class="row-type">Net AMT</td>
+  {cells(amt["ob"], _amt)}
+</tr>
+<tr class="rf-row">
+  <td class="row-label">RF</td><td class="row-type">Net AMT</td>
+  {cells(amt["rf"], _amt)}
+</tr>
+<tr class="act-main-row">
+  <td class="row-label" rowspan="3">ACT/Fcst</td><td class="row-type">Net AMT</td>
+  {cells(amt["act"], _amt, "act-val")}
+</tr>
+<tr class="act-sub-row">
+  <td class="row-type">% vs OB</td>{cells(amt["pct_ob"], _pct)}
+</tr>
+<tr class="act-sub-row">
+  <td class="row-type">+/- vs OB</td>{"".join(f'<td class="{"col-jun" if p=="Jun" else ""}">{_delta(amt["delta_ob"].get(p), 1e6)}</td>' for p in PERIODS)}
+</tr>
+<tr class="section-header-row"><td colspan="{NC}">ASP</td></tr>
+<tr class="asp-row">
+  <td class="row-label">OB</td><td class="row-type">ASP</td>
+  {cells(asp["ob"], _qty)}
+</tr>
+<tr class="asp-row">
+  <td class="row-label">ACT/Fcst</td><td class="row-type">ASP</td>
+  {cells(asp["act"], _qty)}
+</tr>
+</tbody>
+</table>
+</div>"""
+    st.markdown(html, unsafe_allow_html=True)
+
+
 def _get_raw(session_key: str, supabase_key: str, local_path: str) -> bytes | None:
     if session_key in st.session_state:
         return st.session_state[session_key]
@@ -437,10 +647,12 @@ def _get_raw(session_key: str, supabase_key: str, local_path: str) -> bytes | No
 def get_data():
     sales_raw = _get_raw("sales_raw", SALES_KEY, LOCAL_SALES)
     pcr_raw = _get_raw("pcr_raw", PCR_KEY, LOCAL_PCR)
+    order_raw = _get_raw("order_raw", ORDER_KEY, LOCAL_ORDER)
     sales = parse_sales(sales_raw) if sales_raw else None
     monthly = parse_monthly(pcr_raw) if pcr_raw else None
     targets = parse_main_targets(pcr_raw) if pcr_raw else None
-    return sales, monthly, targets
+    y26 = parse_y26_plan(order_raw) if order_raw else None
+    return sales, monthly, targets, y26
 
 # ─────────────────────────────────────────────────────────────
 # 드릴다운 패널 헬퍼
@@ -646,20 +858,23 @@ with st.sidebar:
     # 데이터 소스 상태 표시
     st.divider()
     st.caption("데이터 상태")
-    sales_status = "업로드 파일" if "sales_raw" in st.session_state else "기본 파일"
-    pcr_status = "업로드 파일" if "pcr_raw" in st.session_state else "기본 파일"
-    sales_dot = "status-dot-green" if "sales_raw" in st.session_state else "status-dot-yellow"
-    pcr_dot = "status-dot-green" if "pcr_raw" in st.session_state else "status-dot-yellow"
-    st.markdown(
-        f'<div class="status-badge"><span class="{sales_dot}"></span> 영업 데이터: {sales_status}</div>',
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        f'<div class="status-badge"><span class="{pcr_dot}"></span> PCR 데이터: {pcr_status}</div>',
-        unsafe_allow_html=True,
-    )
-    if "sales_raw" not in st.session_state or "pcr_raw" not in st.session_state:
-        st.caption("새 데이터를 적용하려면 '파일 업로드' 메뉴를 이용하세요.")
+    for key, label, local in [
+        ("sales_raw",  "영업 데이터", LOCAL_SALES),
+        ("pcr_raw",    "PCR 매출",   LOCAL_PCR),
+        ("order_raw",  "발주 시트",   LOCAL_ORDER),
+        ("price_raw",  "가격표",      LOCAL_PRICE),
+    ]:
+        if key in st.session_state:
+            dot, txt = "status-dot-green", "업로드 파일"
+        elif os.path.exists(local):
+            dot, txt = "status-dot-yellow", "기본 파일"
+        else:
+            dot, txt = "status-dot-yellow", "없음"
+        st.markdown(
+            f'<div class="status-badge"><span class="{dot}"></span> {label}: {txt}</div>',
+            unsafe_allow_html=True,
+        )
+    st.caption("새 데이터: '파일 업로드' 메뉴 이용")
 
 # ─────────────────────────────────────────────────────────────
 # 업로드 페이지
@@ -670,7 +885,7 @@ if page == "파일 업로드":
         unsafe_allow_html=True,
     )
 
-    col1, col2 = st.columns(2)
+    col1, col2, col3, col4 = st.columns(4)
 
     with col1:
         st.subheader("영업별 할인 현황")
@@ -740,6 +955,69 @@ if page == "파일 업로드":
                 st.session_state["_goto_dashboard"] = True
                 st.rerun()
 
+    with col3:
+        st.subheader("발주 시트 (Jul26)")
+        if "order_raw" in st.session_state:
+            st.markdown(
+                '<div class="upload-status-card">'
+                '<div class="upload-status-label">현재 상태</div>'
+                '<div class="upload-status-value-active">업로드된 파일 사용 중</div>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                '<div class="upload-status-card">'
+                '<div class="upload-status-label">현재 상태</div>'
+                '<div class="upload-status-value-default">기본 로컬 파일 사용 중</div>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+        st.caption("파일명: PCR - Jul26 prod order sheet_*.xlsx · 시트: Y26 Plan (2)")
+        up_order = st.file_uploader("발주 시트 선택", type=["xlsx"], key="up_order")
+        if up_order:
+            raw = up_order.read()
+            st.session_state["order_raw"] = raw
+            parse_y26_plan.clear()
+            _supabase_upload(raw, ORDER_KEY)
+            plan = parse_y26_plan(raw)
+            if plan:
+                st.success("Y26 Plan 요약 로드 완료")
+            else:
+                st.error("Y26 Plan (2) 시트를 찾을 수 없습니다.")
+            if st.button("대시보드로 이동", key="goto_dashboard_order", type="primary"):
+                st.session_state["_goto_dashboard"] = True
+                st.rerun()
+
+    with col4:
+        st.subheader("가격표 (2026)")
+        if "price_raw" in st.session_state:
+            st.markdown(
+                '<div class="upload-status-card">'
+                '<div class="upload-status-label">현재 상태</div>'
+                '<div class="upload-status-value-active">업로드된 파일 사용 중</div>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                '<div class="upload-status-card">'
+                '<div class="upload-status-label">현재 상태</div>'
+                '<div class="upload-status-value-default">기본 로컬 파일 사용 중</div>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+        st.caption("파일명: 2026 브리지스톤 PCR 타이어 가격표_Final.xlsx · 시트: RE, OE, RFT")
+        up_price = st.file_uploader("가격표 선택", type=["xlsx"], key="up_price")
+        if up_price:
+            raw = up_price.read()
+            st.session_state["price_raw"] = raw
+            _supabase_upload(raw, PRICE_KEY)
+            st.success("가격표 로드 완료")
+            if st.button("대시보드로 이동", key="goto_dashboard_price", type="primary"):
+                st.session_state["_goto_dashboard"] = True
+                st.rerun()
+
 # ─────────────────────────────────────────────────────────────
 # 대시보드로 이동 처리 (rerun 후 page 강제 전환)
 # ─────────────────────────────────────────────────────────────
@@ -760,9 +1038,9 @@ elif page == "대시보드":
         unsafe_allow_html=True,
     )
 
-    sales, monthly, targets = get_data()
+    sales, monthly, targets, y26 = get_data()
 
-    if sales is None and not monthly:
+    if sales is None and not monthly and y26 is None:
         st.info("데이터가 없습니다. 사이드바 → '파일 업로드'에서 xlsx 파일을 올려주세요.")
         st.stop()
 
@@ -788,9 +1066,14 @@ elif page == "대시보드":
     st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
 
     # ── 탭 ───────────────────────────────────────────────────
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(
-        ["이익부서별 실적", "거래처 랭킹", "품목 분류", "할인율 현황", "목표 달성율"]
+    tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs(
+        ["사업 실적 요약", "이익부서별 실적", "거래처 랭킹", "품목 분류", "할인율 현황", "목표 달성율"]
     )
+
+    # ── 탭0: 사업 실적 요약 ───────────────────────────────────
+    with tab0:
+        st.markdown("#### 2026 PCR 사업 실적 요약 (Y26 Plan vs ACT/Fcst)")
+        render_y26_summary(y26)
 
     # ── 탭1: 이익부서 ─────────────────────────────────────────
     with tab1:
