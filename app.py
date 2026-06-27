@@ -1,3 +1,4 @@
+import base64
 import os
 from io import BytesIO
 
@@ -13,6 +14,17 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+# ─────────────────────────────────────────────────────────────
+# 로고 base64 인코딩
+# ─────────────────────────────────────────────────────────────
+@st.cache_data(show_spinner=False)
+def _logo_b64() -> str:
+    try:
+        with open("logo.png", "rb") as f:
+            return base64.b64encode(f.read()).decode()
+    except FileNotFoundError:
+        return ""
 
 # ─────────────────────────────────────────────────────────────
 # 글로벌 CSS  (Bridgestone brand: Barlow Condensed + Noto Sans KR)
@@ -31,91 +43,119 @@ h1, h2, h3 {
     letter-spacing: 0.5px;
 }
 
+/* ── 앱 배경 ── */
+.stApp {
+    background: #0d1117;
+}
+section[data-testid="stSidebar"] {
+    background: #111827;
+    border-right: 1px solid #1f2937;
+}
+
 /* ── KPI 카드 ── */
 .kpi-card {
-    background: #111827;
-    border-left: 4px solid #E2231A;
-    border-radius: 6px;
-    padding: 18px 22px;
+    background: linear-gradient(135deg, #161d2e 0%, #1a2234 100%);
+    border-left: 3px solid #E2231A;
+    border-radius: 8px;
+    padding: 14px 18px;
     margin: 4px 0;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+    box-shadow: 0 1px 6px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.03);
     position: relative;
     overflow: hidden;
 }
-.kpi-card::before {
+.kpi-card::after {
     content: '';
     position: absolute;
     top: 0; right: 0;
-    width: 80px; height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(226,35,26,0.04));
+    width: 60px; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(226,35,26,0.05));
+    pointer-events: none;
 }
 .kpi-label {
     color: #6b7280;
     font-family: 'Barlow', 'Noto Sans KR', sans-serif;
-    font-size: 11px;
-    font-weight: 600;
+    font-size: 10px;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 1.2px;
-    margin-bottom: 10px;
+    letter-spacing: 1.4px;
+    margin-bottom: 8px;
 }
 .kpi-value {
-    color: #f9fafb;
+    color: #f1f5f9;
     font-family: 'Barlow Condensed', 'Noto Sans KR', sans-serif;
-    font-size: 32px;
+    font-size: 28px;
     font-weight: 700;
     line-height: 1;
     letter-spacing: -0.5px;
 }
-.kpi-delta-neg { color: #f87171; font-size: 12px; margin-top: 6px; font-weight: 600; }
-.kpi-delta-pos { color: #4ade80; font-size: 12px; margin-top: 6px; font-weight: 600; }
+.kpi-delta-neg { color: #f87171; font-size: 11px; margin-top: 5px; font-weight: 600; }
+.kpi-delta-pos { color: #4ade80; font-size: 11px; margin-top: 5px; font-weight: 600; }
 
 /* ── 헤더 배너 ── */
 .header-banner {
-    background: #111827;
+    background: linear-gradient(135deg, #111827 0%, #161d2e 100%);
     border-top: 3px solid #E2231A;
-    border-radius: 6px;
-    padding: 26px 32px;
-    margin-bottom: 24px;
+    border-radius: 8px;
+    padding: 20px 28px;
+    margin-bottom: 20px;
     display: flex;
     align-items: center;
-    gap: 20px;
+    gap: 18px;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.4);
 }
-.header-logo {
-    display: inline-block;
+.header-logo-img {
+    width: 52px;
+    height: 52px;
+    object-fit: contain;
+    flex-shrink: 0;
+    filter: brightness(1.05);
+}
+.header-logo-fallback {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     background: #E2231A;
     color: #fff;
     font-family: 'Barlow Condensed', sans-serif;
     font-weight: 800;
-    font-size: 15px;
+    font-size: 14px;
     letter-spacing: 2px;
-    padding: 6px 14px;
-    border-radius: 3px;
+    width: 52px;
+    height: 52px;
+    border-radius: 4px;
     text-transform: uppercase;
+    flex-shrink: 0;
+}
+.header-divider {
+    width: 1px;
+    height: 44px;
+    background: #2d3748;
     flex-shrink: 0;
 }
 .header-text { flex: 1; }
 .header-title {
-    color: #f9fafb;
+    color: #f1f5f9;
     font-family: 'Barlow Condensed', 'Noto Sans KR', sans-serif;
-    font-size: 28px;
+    font-size: 24px;
     font-weight: 700;
-    margin: 0 0 4px 0;
-    letter-spacing: 0.5px;
+    margin: 0 0 3px 0;
+    letter-spacing: 0.8px;
     text-transform: uppercase;
 }
 .header-sub {
-    color: #6b7280;
+    color: #4b5563;
     font-family: 'Barlow', sans-serif;
-    font-size: 12px;
+    font-size: 11px;
     margin: 0;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
 }
 
 /* ── 섹션 구분선 ── */
 .section-divider {
     border: none;
     border-top: 1px solid #1f2937;
-    margin: 24px 0;
+    margin: 20px 0;
 }
 
 /* ── Plotly 배경 투명 ── */
@@ -125,14 +165,87 @@ h1, h2, h3 {
 
 /* ── 탭 스타일 ── */
 .stTabs [data-baseweb="tab-list"] {
-    gap: 4px;
+    gap: 2px;
     border-bottom: 2px solid #1f2937;
+    background: transparent;
 }
 .stTabs [data-baseweb="tab"] {
     font-family: 'Barlow', 'Noto Sans KR', sans-serif;
     font-weight: 600;
     font-size: 13px;
     letter-spacing: 0.3px;
+    color: #6b7280;
+    border-radius: 6px 6px 0 0;
+    padding: 8px 16px;
+    border: none;
+    background: transparent;
+    transition: background 0.15s, color 0.15s;
+}
+.stTabs [data-baseweb="tab"]:hover {
+    background: #1a2234;
+    color: #e5e7eb;
+}
+.stTabs [aria-selected="true"] {
+    background: #1a2234 !important;
+    color: #E2231A !important;
+    border-bottom: 2px solid #E2231A !important;
+}
+
+/* ── 사이드바 스타일 ── */
+.sidebar-logo-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 0 12px 0;
+}
+.sidebar-logo-img {
+    width: 110px;
+    object-fit: contain;
+}
+
+/* ── 데이터 상태 뱃지 ── */
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: 'Barlow', 'Noto Sans KR', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+}
+.status-dot-green { width:7px; height:7px; border-radius:50%; background:#22c55e; display:inline-block; }
+.status-dot-yellow { width:7px; height:7px; border-radius:50%; background:#fbbf24; display:inline-block; }
+
+/* ── 업로드 페이지 상태 카드 ── */
+.upload-status-card {
+    background: #161d2e;
+    border: 1px solid #1f2937;
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin-bottom: 12px;
+}
+.upload-status-label {
+    color: #6b7280;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+}
+.upload-status-value-active {
+    color: #22c55e;
+    font-size: 13px;
+    font-weight: 600;
+}
+.upload-status-value-default {
+    color: #fbbf24;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+/* ── 데이터프레임 스타일 ── */
+.stDataFrame {
+    border: 1px solid #1f2937 !important;
+    border-radius: 6px !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -492,34 +605,94 @@ def render_dept_detail(dept: str, df_jun, sales, targets, df_may=None):
 
 
 # ─────────────────────────────────────────────────────────────
+# 헤더 배너 HTML 생성
+# ─────────────────────────────────────────────────────────────
+def _header_banner(title: str, subtitle: str) -> str:
+    logo = _logo_b64()
+    if logo:
+        logo_html = f'<img class="header-logo-img" src="data:image/png;base64,{logo}" alt="Bridgestone">'
+    else:
+        logo_html = '<span style="font-family:\'Barlow Condensed\',\'Noto Sans KR\',sans-serif;font-weight:800;font-size:20px;color:#E2231A;letter-spacing:3px;flex-shrink:0;">BRIDGESTONE</span>'
+    return f"""
+    <div class="header-banner">
+        {logo_html}
+        <div class="header-divider"></div>
+        <div class="header-text">
+            <p class="header-title">{title}</p>
+            <p class="header-sub">{subtitle}</p>
+        </div>
+    </div>
+    """
+
+
+# ─────────────────────────────────────────────────────────────
 # 사이드바
 # ─────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("## 브리지스톤 PCR")
+    # 로고 (사이드바 최상단)
+    try:
+        st.image("logo.png", width=110)
+    except Exception:
+        st.markdown(
+            '<p style="font-family:\'Barlow Condensed\',sans-serif;font-weight:800;'
+            'font-size:16px;color:#E2231A;letter-spacing:2px;margin:0 0 8px 0;">BRIDGESTONE</p>',
+            unsafe_allow_html=True,
+        )
     st.divider()
     page = st.radio("메뉴", ["대시보드", "파일 업로드"], label_visibility="collapsed")
     st.divider()
     st.caption("Supabase 연결됨" if SUPABASE else "로컬 모드")
 
+    # 데이터 소스 상태 표시
+    st.divider()
+    st.caption("데이터 상태")
+    sales_status = "업로드 파일" if "sales_raw" in st.session_state else "기본 파일"
+    pcr_status = "업로드 파일" if "pcr_raw" in st.session_state else "기본 파일"
+    sales_dot = "status-dot-green" if "sales_raw" in st.session_state else "status-dot-yellow"
+    pcr_dot = "status-dot-green" if "pcr_raw" in st.session_state else "status-dot-yellow"
+    st.markdown(
+        f'<div class="status-badge"><span class="{sales_dot}"></span> 영업 데이터: {sales_status}</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        f'<div class="status-badge"><span class="{pcr_dot}"></span> PCR 데이터: {pcr_status}</div>',
+        unsafe_allow_html=True,
+    )
+    if "sales_raw" not in st.session_state or "pcr_raw" not in st.session_state:
+        st.caption("새 데이터를 적용하려면 '파일 업로드' 메뉴를 이용하세요.")
+
 # ─────────────────────────────────────────────────────────────
 # 업로드 페이지
 # ─────────────────────────────────────────────────────────────
 if page == "파일 업로드":
-    st.markdown("""
-    <div class="header-banner">
-        <span class="header-logo">BSTK</span>
-        <div class="header-text">
-            <p class="header-title">파일 업로드</p>
-            <p class="header-sub">주마다 최신 엑셀 파일을 올려주세요. 업로드 즉시 대시보드에 반영됩니다.</p>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        _header_banner("파일 업로드", "Bridgestone Korea · 최신 엑셀 파일을 업로드하면 대시보드에 즉시 반영됩니다"),
+        unsafe_allow_html=True,
+    )
 
     col1, col2 = st.columns(2)
+
     with col1:
         st.subheader("영업별 할인 현황")
-        st.caption("sales data_*.xlsx")
-        up_sales = st.file_uploader("파일 선택", type=["xlsx"], key="up_sales")
+        # 현재 상태 표시
+        if "sales_raw" in st.session_state:
+            st.markdown(
+                '<div class="upload-status-card">'
+                '<div class="upload-status-label">현재 상태</div>'
+                '<div class="upload-status-value-active">업로드된 파일 사용 중</div>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                '<div class="upload-status-card">'
+                '<div class="upload-status-label">현재 상태</div>'
+                '<div class="upload-status-value-default">기본 로컬 파일 사용 중</div>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+        st.caption("파일명: sales data_*.xlsx · 시트: Sheet1")
+        up_sales = st.file_uploader("영업 데이터 선택", type=["xlsx"], key="up_sales")
         if up_sales:
             raw = up_sales.read()
             st.session_state["sales_raw"] = raw
@@ -528,35 +701,64 @@ if page == "파일 업로드":
             preview = parse_sales(raw)
             st.success(f"{len(preview):,}건 로드 완료")
             st.dataframe(preview.head(5), use_container_width=True)
+            if st.button("대시보드로 이동", key="goto_dashboard_sales", type="primary"):
+                st.session_state["_goto_dashboard"] = True
+                st.rerun()
 
     with col2:
         st.subheader("월별 매출현황 (PCR)")
-        st.caption("(PCR) Jun sales data_*.xlsx")
-        up_pcr = st.file_uploader("파일 선택", type=["xlsx"], key="up_pcr")
+        # 현재 상태 표시
+        if "pcr_raw" in st.session_state:
+            st.markdown(
+                '<div class="upload-status-card">'
+                '<div class="upload-status-label">현재 상태</div>'
+                '<div class="upload-status-value-active">업로드된 파일 사용 중</div>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                '<div class="upload-status-card">'
+                '<div class="upload-status-label">현재 상태</div>'
+                '<div class="upload-status-value-default">기본 로컬 파일 사용 중</div>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+        st.caption("파일명: (PCR) Jun sales data_*.xlsx · 시트: Main, 6월 매출현황, 5월 매출현황")
+        up_pcr = st.file_uploader("PCR 데이터 선택", type=["xlsx"], key="up_pcr")
         if up_pcr:
             raw = up_pcr.read()
             st.session_state["pcr_raw"] = raw
             parse_monthly.clear()
+            parse_main_targets.clear()
             _supabase_upload(raw, PCR_KEY)
             sheets = parse_monthly(raw)
             for k, df in sheets.items():
                 label = "6월" if k == "jun" else "5월"
                 st.success(f"{label} 매출현황: {len(df):,}건 로드 완료")
+            if st.button("대시보드로 이동", key="goto_dashboard_pcr", type="primary"):
+                st.session_state["_goto_dashboard"] = True
+                st.rerun()
+
+# ─────────────────────────────────────────────────────────────
+# 대시보드로 이동 처리 (rerun 후 page 강제 전환)
+# ─────────────────────────────────────────────────────────────
+if st.session_state.pop("_goto_dashboard", False):
+    st.session_state["_page_override"] = "대시보드"
+    st.rerun()
 
 # ─────────────────────────────────────────────────────────────
 # 대시보드 페이지
 # ─────────────────────────────────────────────────────────────
-else:
+elif page == "대시보드":
     # 헤더 배너
-    st.markdown("""
-    <div class="header-banner">
-        <span class="header-logo">BSTK</span>
-        <div class="header-text">
-            <p class="header-title">브리지스톤 PCR 세일즈 대시보드</p>
-            <p class="header-sub">Bridgestone Korea · PCR Sales Performance</p>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        _header_banner(
+            "브리지스톤 PCR 세일즈 대시보드",
+            "Bridgestone Korea · PCR Sales Performance",
+        ),
+        unsafe_allow_html=True,
+    )
 
     sales, monthly, targets = get_data()
 
@@ -611,7 +813,7 @@ else:
                     clicked = pt.get("y") or pt.get("label")
                     if clicked:
                         st.session_state["sel_dept"] = clicked
-                st.caption("💡 막대를 클릭하면 이익부서 상세 정보를 볼 수 있습니다.")
+                st.caption("막대를 클릭하면 이익부서 상세 정보를 볼 수 있습니다.")
 
             with col2:
                 if df_may is not None:
@@ -654,7 +856,7 @@ else:
                 clicked = pt.get("y") or pt.get("label")
                 if clicked:
                     st.session_state["sel_dealer"] = clicked
-            st.caption("💡 막대를 클릭하면 거래처 상세 정보를 볼 수 있습니다.")
+            st.caption("막대를 클릭하면 거래처 상세 정보를 볼 수 있습니다.")
 
             if "sel_dealer" in st.session_state:
                 render_dealer_detail(st.session_state["sel_dealer"], sales, df_jun, targets)
@@ -715,21 +917,26 @@ else:
                     sales.groupby("이익부서")["할인율(%)"]
                     .mean().reset_index().sort_values("할인율(%)")
                 )
+                dept_disc = dept_disc[dept_disc["할인율(%)"] >= 0]
                 fig = px.bar(
                     dept_disc, x="할인율(%)", y="이익부서", orientation="h",
                     title="이익부서별 평균 할인율",
                     color_discrete_sequence=[CHART_COLORS[2]],
                     text_auto=".1f",
                 )
+                fig.update_xaxes(range=[0, None])
                 st.plotly_chart(dark_layout(fig), use_container_width=True)
 
             with col2:
+                disc_valid = sales.dropna(subset=["할인율(%)"]).copy()
+                disc_valid = disc_valid[disc_valid["할인율(%)"] >= 0]
                 fig2 = px.histogram(
-                    sales.dropna(subset=["할인율(%)"]),
+                    disc_valid,
                     x="할인율(%)", nbins=20,
                     title="할인율 분포",
                     color_discrete_sequence=[CHART_COLORS[0]],
                 )
+                fig2.update_xaxes(range=[0, None])
                 st.plotly_chart(dark_layout(fig2), use_container_width=True)
 
             tbl2 = (
@@ -829,6 +1036,8 @@ else:
                 fig_pic.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
                 fig_pic.add_hline(y=100, line_dash="dash", line_color="#ffffff", opacity=0.35)
                 fig_pic.update_layout(showlegend=False)
+                fig_pic.update_xaxes(tickangle=0)
+                fig_pic.update_yaxes(rangemode="nonnegative")
                 st.plotly_chart(dark_layout(fig_pic, height=340), use_container_width=True)
 
             # 금액 달성율 (Rebate Target 1H / 6 기준)
