@@ -798,15 +798,16 @@ elif page == "대시보드":
             col1, col2 = st.columns(2)
             with col1:
                 dept = (
-                    df_jun.groupby("이익부서")["합계금액"]
-                    .sum().reset_index().sort_values("합계금액")
+                    df_jun.groupby("이익부서")["QTY"]
+                    .sum().reset_index().sort_values("QTY")
                 )
                 fig = px.bar(
-                    dept, x="합계금액", y="이익부서", orientation="h",
-                    title="6월 이익부서별 매출",
+                    dept, x="QTY", y="이익부서", orientation="h",
+                    title="6월 이익부서별 판매 수량",
                     color_discrete_sequence=[CHART_COLORS[0]],
-                    text_auto=".2s",
+                    text_auto=True,
                 )
+                fig.update_xaxes(title_text="수량(본)")
                 evt_dept = st.plotly_chart(
                     dark_layout(fig), use_container_width=True, on_select="rerun"
                 )
@@ -818,19 +819,26 @@ elif page == "대시보드":
                 st.caption("막대를 클릭하면 이익부서 상세 정보를 볼 수 있습니다.")
 
             with col2:
-                if df_may is not None:
-                    j = df_jun.groupby("이익부서")["합계금액"].sum().rename("6월")
-                    m = df_may.groupby("이익부서")["합계금액"].sum().rename("5월")
-                    comp = pd.concat([m, j], axis=1).fillna(0).reset_index()
-                    melt = comp.melt(id_vars="이익부서", var_name="월", value_name="매출")
-                    fig2 = px.bar(
-                        melt, x="이익부서", y="매출", color="월",
-                        barmode="group", title="5월 vs 6월 비교",
-                        color_discrete_map={"5월": "#374151", "6월": "#E2231A"},
-                    )
-                    fig2.update_xaxes(tickangle=-45, tickfont=dict(size=9))
-                    fig2.update_layout(margin=dict(b=120))
-                    st.plotly_chart(dark_layout(fig2), use_container_width=True)
+                if targets is not None and not targets.empty:
+                    dept_map = df_jun[["거래처", "이익부서"]].drop_duplicates()
+                    merged = targets.merge(dept_map, left_on="대리점", right_on="거래처", how="left")
+                    if "이익부서" in merged.columns:
+                        tgt_dept = merged.groupby("이익부서")["JUN_FCST"].sum().reset_index()
+                        act_dept = df_jun.groupby("이익부서")["QTY"].sum().reset_index()
+                        comp2 = tgt_dept.merge(act_dept, on="이익부서", how="outer").fillna(0)
+                        comp2 = comp2.rename(columns={"JUN_FCST": "목표", "QTY": "실적"})
+                        comp2 = comp2[comp2["목표"] > 0]
+                        melt2 = comp2.melt(id_vars="이익부서", value_vars=["목표", "실적"],
+                                           var_name="구분", value_name="수량")
+                        fig2 = px.bar(
+                            melt2, x="이익부서", y="수량", color="구분",
+                            barmode="group", title="이익부서별 목표 vs 실적 (수량)",
+                            color_discrete_map={"목표": "#374151", "실적": "#E2231A"},
+                        )
+                        fig2.update_xaxes(tickangle=-45, tickfont=dict(size=9))
+                        fig2.update_layout(margin=dict(b=120))
+                        fig2.update_yaxes(title_text="수량(본)")
+                        st.plotly_chart(dark_layout(fig2), use_container_width=True)
 
         if "sel_dept" in st.session_state:
             render_dept_detail(st.session_state["sel_dept"], df_jun, sales, targets, df_may)
@@ -840,17 +848,18 @@ elif page == "대시보드":
         if df_jun is not None:
             top_n = st.slider("상위 N개", 5, 30, 10, key="top_n")
             top = (
-                df_jun.groupby("거래처")["합계금액"]
-                .sum().nlargest(top_n).reset_index().sort_values("합계금액")
+                df_jun.groupby("거래처")["QTY"]
+                .sum().nlargest(top_n).reset_index().sort_values("QTY")
             )
             fig = px.bar(
-                top, x="합계금액", y="거래처", orientation="h",
-                title=f"거래처 매출 TOP {top_n}",
-                color="합계금액",
+                top, x="QTY", y="거래처", orientation="h",
+                title=f"거래처 판매 수량 TOP {top_n}",
+                color="QTY",
                 color_continuous_scale=["#374151", "#E2231A"],
-                text_auto=".2s",
+                text_auto=True,
             )
             fig.update_layout(coloraxis_showscale=False)
+            fig.update_xaxes(title_text="수량(본)")
             evt_dealer = st.plotly_chart(
                 dark_layout(fig, height=max(380, top_n * 32)),
                 use_container_width=True, on_select="rerun",
@@ -867,10 +876,9 @@ elif page == "대시보드":
 
             tbl = (
                 df_jun.groupby(["거래처", "이익부서"])
-                .agg(매출=("합계금액", "sum"), 수량=("QTY", "sum"))
-                .sort_values("매출", ascending=False).reset_index()
+                .agg(수량=("QTY", "sum"))
+                .sort_values("수량", ascending=False).reset_index()
             )
-            tbl["매출"] = tbl["매출"].map("{:,.0f}".format)
             tbl["수량"] = tbl["수량"].map("{:,.0f}".format)
             st.dataframe(tbl, use_container_width=True, hide_index=True)
 
@@ -879,10 +887,10 @@ elif page == "대시보드":
         if df_jun is not None:
             col1, col2 = st.columns(2)
             with col1:
-                품목 = df_jun.groupby("품목분류")["합계금액"].sum().reset_index()
+                품목 = df_jun.groupby("품목분류")["QTY"].sum().reset_index()
                 fig = px.pie(
-                    품목, values="합계금액", names="품목분류",
-                    title="품목분류별 매출 비중",
+                    품목, values="QTY", names="품목분류",
+                    title="품목분류별 판매 수량 비중",
                     color_discrete_sequence=CHART_COLORS,
                     hole=0.4,
                 )
@@ -891,26 +899,61 @@ elif page == "대시보드":
 
             with col2:
                 mtp = (
-                    df_jun.groupby("MTP분류")["합계금액"]
-                    .sum().nlargest(10).reset_index().sort_values("합계금액")
+                    df_jun.groupby("MTP분류")["QTY"]
+                    .sum().nlargest(10).reset_index().sort_values("QTY")
                 )
                 fig2 = px.bar(
-                    mtp, x="합계금액", y="MTP분류", orientation="h",
-                    title="MTP분류별 매출 TOP 10",
+                    mtp, x="QTY", y="MTP분류", orientation="h",
+                    title="MTP분류별 판매 수량 TOP 10",
                     color_discrete_sequence=[CHART_COLORS[1]],
-                    text_auto=".2s",
+                    text_auto=True,
                 )
+                fig2.update_xaxes(title_text="수량(본)")
                 st.plotly_chart(dark_layout(fig2), use_container_width=True)
 
-            원산지 = df_jun.groupby("원산지")["QTY"].sum().reset_index()
-            fig3 = px.pie(
-                원산지, values="QTY", names="원산지",
-                title="원산지별 판매 수량 비중",
-                color_discrete_sequence=CHART_COLORS,
-                hole=0.4,
-            )
-            fig3.update_traces(textfont_color="white")
-            st.plotly_chart(dark_layout(fig3), use_container_width=True)
+            col3, col4 = st.columns(2)
+            with col3:
+                원산지 = df_jun.groupby("원산지")["QTY"].sum().reset_index()
+                fig3 = px.pie(
+                    원산지, values="QTY", names="원산지",
+                    title="원산지별 판매 수량 비중",
+                    color_discrete_sequence=CHART_COLORS,
+                    hole=0.4,
+                )
+                fig3.update_traces(textfont_color="white")
+                st.plotly_chart(dark_layout(fig3), use_container_width=True)
+
+            with col4:
+                if "SIZE" in df_jun.columns:
+                    size_qty = (
+                        df_jun.groupby("SIZE")["QTY"]
+                        .sum().nlargest(15).reset_index().sort_values("QTY")
+                    )
+                    fig4 = px.bar(
+                        size_qty, x="QTY", y="SIZE", orientation="h",
+                        title="SIZE별 판매 수량 TOP 15",
+                        color_discrete_sequence=[CHART_COLORS[2]],
+                        text_auto=True,
+                    )
+                    fig4.update_xaxes(title_text="수량(본)")
+                    st.plotly_chart(dark_layout(fig4), use_container_width=True)
+
+            if "PTTN" in df_jun.columns:
+                st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
+                pttn_qty = (
+                    df_jun.groupby("PTTN")["QTY"]
+                    .sum().nlargest(20).reset_index().sort_values("QTY")
+                )
+                fig5 = px.bar(
+                    pttn_qty, x="QTY", y="PTTN", orientation="h",
+                    title="패턴(PTTN)별 판매 수량 TOP 20",
+                    color="QTY",
+                    color_continuous_scale=["#374151", "#E2231A"],
+                    text_auto=True,
+                )
+                fig5.update_layout(coloraxis_showscale=False)
+                fig5.update_xaxes(title_text="수량(본)")
+                st.plotly_chart(dark_layout(fig5, height=520), use_container_width=True)
 
     # ── 탭4: 할인율 ──────────────────────────────────────────
     with tab4:
@@ -1044,63 +1087,57 @@ elif page == "대시보드":
                 fig_pic.update_yaxes(rangemode="nonnegative")
                 st.plotly_chart(dark_layout(fig_pic, height=340), use_container_width=True)
 
-            # 금액 달성율 (Rebate Target 1H / 6 기준)
+            # FCST 갭 분석 (목표 미달량 상위)
             with col2:
-                st.subheader("거래처별 6월 금액 달성율")
-                df_amt = targets[
-                    targets["REBATE_AMT_1H"].notna() & (targets["REBATE_AMT_1H"] > 0)
-                ].copy()
-
-                if df_jun is not None and not df_amt.empty:
-                    jun_amt = df_jun.groupby("거래처")["합계금액"].sum().reset_index()
-                    jun_amt.columns = ["대리점", "JUN_AMT_ACT"]
-                    df_amt = df_amt.merge(jun_amt, on="대리점", how="left")
-                    df_amt_m = df_amt[df_amt["JUN_AMT_ACT"].notna()].copy()
-
-                    if not df_amt_m.empty:
-                        df_amt_m["AMT_MON_TGT"] = df_amt_m["REBATE_AMT_1H"] / 6
-                        df_amt_m["금액달성율"] = (
-                            df_amt_m["JUN_AMT_ACT"] / df_amt_m["AMT_MON_TGT"] * 100
-                        ).round(1)
-                        df_amt_m["구분"] = df_amt_m["금액달성율"].apply(
-                            lambda x: "달성 (≥100%)" if x >= 100
-                            else ("근접 (80~99%)" if x >= 80 else "미달 (<80%)")
-                        )
-                        sorted_amt = df_amt_m.sort_values("금액달성율", ascending=True)
-                        fig_amt = px.bar(
-                            sorted_amt,
-                            x="금액달성율", y="대리점", orientation="h",
-                            color="구분",
-                            color_discrete_map=COLOR_MAP,
-                            text="금액달성율",
-                            title="6월 금액 달성율 (리베이트 1H 목표 ÷ 6 기준)",
-                        )
-                        fig_amt.update_traces(
-                            texttemplate="%{text:.1f}%", textposition="outside"
-                        )
-                        fig_amt.add_vline(
-                            x=100, line_dash="dash", line_color="#ffffff", opacity=0.35
-                        )
-                        fig_amt.update_layout(showlegend=False)
-                        st.plotly_chart(
-                            dark_layout(fig_amt, height=340), use_container_width=True
-                        )
-                        st.caption("※ 금액 목표 = 리베이트 1H 목표 ÷ 6개월 (월별 할당 추정)")
-                    else:
-                        st.info("거래처명 매칭 실패. 수량 달성율을 참고해주세요.")
+                st.subheader("FCST 갭 TOP 20 (미달량 기준)")
+                df_gap = df_rate.copy()
+                df_gap["미달량"] = (df_gap["JUN_FCST"] - df_gap["JUN_ACT"]).clip(lower=0).round(0)
+                df_gap = df_gap[df_gap["미달량"] > 0].nlargest(20, "미달량").sort_values("미달량")
+                if not df_gap.empty:
+                    fig_gap = px.bar(
+                        df_gap, x="미달량", y="대리점", orientation="h",
+                        color="달성율",
+                        color_continuous_scale=["#E2231A", "#FFA62B", "#22c55e"],
+                        range_color=[0, 100],
+                        text="미달량",
+                        title="목표 미달량 상위 20 거래처",
+                    )
+                    fig_gap.update_traces(texttemplate="%{text:.0f}본", textposition="outside")
+                    fig_gap.update_layout(coloraxis_colorbar=dict(title="달성율%"))
+                    fig_gap.update_xaxes(title_text="미달량(본)")
+                    st.plotly_chart(dark_layout(fig_gap, height=540), use_container_width=True)
                 else:
-                    st.info("6월 매출현황 데이터 없음. 수량 달성율만 표시됩니다.")
+                    st.success("목표 미달 거래처가 없습니다.")
 
-            # 월별 수량 추이 (Jan~Jun) — 상위 10 거래처
+            # 월별 수량 추이 (Jan~Jun)
             st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
-            st.subheader("상위 거래처 월별 수량 추이 (Jan~Jun 2026)")
+            st.subheader("월별 전체 판매 수량 추이 (Jan~Jun 2026)")
 
-            top10 = targets.nlargest(10, "1H_ACT")["대리점"].tolist()
-            trend = targets[targets["대리점"].isin(top10)]
             MONTH_MAP = {
                 "JAN_ACT": "1월", "FEB_ACT": "2월", "MAR_ACT": "3월",
                 "APR_ACT": "4월", "MAY_ACT": "5월", "JUN_ACT": "6월",
             }
+            monthly_total = {
+                lbl: targets[col_k].sum()
+                for col_k, lbl in MONTH_MAP.items()
+                if targets[col_k].sum() > 0
+            }
+            if monthly_total:
+                df_monthly = pd.DataFrame(
+                    list(monthly_total.items()), columns=["월", "수량"]
+                )
+                fig_monthly = px.bar(
+                    df_monthly, x="월", y="수량",
+                    title="월별 전체 판매 수량 합계",
+                    color_discrete_sequence=[CHART_COLORS[0]],
+                    text_auto=True,
+                )
+                fig_monthly.update_yaxes(title_text="수량(본)")
+                st.plotly_chart(dark_layout(fig_monthly, height=360), use_container_width=True)
+
+            st.subheader("상위 10 거래처 월별 수량 추이")
+            top10 = targets.nlargest(10, "1H_ACT")["대리점"].tolist()
+            trend = targets[targets["대리점"].isin(top10)]
             rows_trend = []
             for _, r in trend.iterrows():
                 for col_k, lbl in MONTH_MAP.items():
@@ -1116,4 +1153,5 @@ elif page == "대시보드":
                     markers=True,
                     color_discrete_sequence=CHART_COLORS * 2,
                 )
+                fig_trend.update_yaxes(title_text="수량(본)")
                 st.plotly_chart(dark_layout(fig_trend, height=400), use_container_width=True)
