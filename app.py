@@ -26,6 +26,14 @@ def _logo_b64() -> str:
     except FileNotFoundError:
         return ""
 
+@st.cache_data(show_spinner=False)
+def _logo4_b64() -> str:
+    try:
+        with open("logo4.png", "rb") as f:
+            return base64.b64encode(f.read()).decode()
+    except FileNotFoundError:
+        return ""
+
 # ─────────────────────────────────────────────────────────────
 # 글로벌 CSS  (Bridgestone brand: Barlow Condensed + Noto Sans KR)
 # ─────────────────────────────────────────────────────────────
@@ -290,6 +298,21 @@ section[data-testid="stSidebar"] {
 .act-main-row td.act-val { color: #34d399 !important; }
 .act-sub-row td { background: #131a13; color: #9ca3af; font-size: 11px; }
 .asp-row td { background: #1a1a2e; color: #d1d5db; }
+
+/* ── 사이드바 로고 화이트 박스 ── */
+.sidebar-logo-box {
+    background: #ffffff;
+    border-radius: 6px;
+    padding: 8px 14px;
+    margin-bottom: 4px;
+    display: inline-block;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.35);
+}
+.sidebar-logo-box img {
+    width: 130px;
+    height: auto;
+    display: block;
+}
 
 /* ── 업로드 컬럼 타이틀 고정 높이 (4컬럼 정렬 일치) ── */
 .upload-col-title {
@@ -854,10 +877,16 @@ def _header_banner(title: str, subtitle: str) -> str:
 # 사이드바
 # ─────────────────────────────────────────────────────────────
 with st.sidebar:
-    # 로고 (사이드바 최상단)
-    try:
-        st.image("logo_wide.png", width=160)
-    except Exception:
+    # 로고 (사이드바 최상단 — 흰 배경 박스)
+    logo4 = _logo4_b64()
+    if logo4:
+        st.markdown(
+            f'<div class="sidebar-logo-box">'
+            f'<img src="data:image/png;base64,{logo4}" alt="Bridgestone">'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+    else:
         st.markdown(
             '<p style="font-family:\'Barlow Condensed\',sans-serif;font-weight:800;'
             'font-size:16px;color:#E2231A;letter-spacing:2px;margin:0 0 8px 0;">BRIDGESTONE</p>',
