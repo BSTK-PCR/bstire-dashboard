@@ -631,7 +631,7 @@ def _header_banner(title: str, subtitle: str) -> str:
 with st.sidebar:
     # 로고 (사이드바 최상단)
     try:
-        st.image("logo.png", width=110)
+        st.image("logo_wide.png", width=160)
     except Exception:
         st.markdown(
             '<p style="font-family:\'Barlow Condensed\',sans-serif;font-weight:800;'
@@ -851,12 +851,33 @@ elif page == "대시보드":
                 df_jun.groupby("거래처")["QTY"]
                 .sum().nlargest(top_n).reset_index().sort_values("QTY")
             )
+            # PTTN별 수량 브레이크다운 (호버 말풍선용)
+            _pttn_agg = (
+                df_jun.groupby(["거래처", "PTTN"])["QTY"]
+                .sum().reset_index()
+                .sort_values(["거래처", "QTY"], ascending=[True, False])
+            )
+            def _pttn_lines(dealer):
+                rows = _pttn_agg[_pttn_agg["거래처"] == dealer]
+                return "<br>".join(f"{r['PTTN']}: {int(r['QTY']):,}본" for _, r in rows.iterrows()) or "—"
+            top["pttn_detail"] = top["거래처"].apply(_pttn_lines)
+
             fig = px.bar(
                 top, x="QTY", y="거래처", orientation="h",
                 title=f"거래처 판매 수량 TOP {top_n}",
                 color="QTY",
                 color_continuous_scale=["#374151", "#E2231A"],
                 text_auto=True,
+                custom_data=["pttn_detail"],
+            )
+            fig.update_traces(
+                hovertemplate=(
+                    "<b>%{y}</b><br>"
+                    "총 수량: %{x:,}본<br><br>"
+                    "<b>PTTN별 수량</b><br>"
+                    "%{customdata[0]}"
+                    "<extra></extra>"
+                )
             )
             fig.update_layout(coloraxis_showscale=False)
             fig.update_xaxes(title_text="수량(본)")
