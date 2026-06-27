@@ -773,15 +773,17 @@ elif page == "대시보드":
     if df_jun is not None:
         jun_total = df_jun["합계금액"].sum()
         jun_qty = int(df_jun["QTY"].sum())
-        may_total = df_may["합계금액"].sum() if df_may is not None else None
-        growth = ((jun_total - may_total) / may_total * 100) if may_total else None
         avg_disc = sales["할인율(%)"].mean() if sales is not None else None
 
-        c1, c2, c3, c4 = st.columns(4)
-        c1.markdown(kpi_card("6월 총 매출", f"{jun_total/1e8:.2f}억원", growth), unsafe_allow_html=True)
+        tgt_qty = targets["JUN_FCST"].sum() if targets is not None and not targets.empty else None
+        tgt_rate = (jun_qty / tgt_qty * 100) if tgt_qty and tgt_qty > 0 else None
+
+        c1, c2, c3, c4, c5 = st.columns(5)
+        c1.markdown(kpi_card("6월 총 매출", f"{jun_total/1e8:.2f}억원"), unsafe_allow_html=True)
         c2.markdown(kpi_card("6월 총 판매 수량", f"{jun_qty:,}본"), unsafe_allow_html=True)
-        c3.markdown(kpi_card("거래처 수", f"{df_jun['거래처'].nunique():,}개"), unsafe_allow_html=True)
-        c4.markdown(kpi_card("평균 할인율", f"{avg_disc:.1f}%" if avg_disc else "—"), unsafe_allow_html=True)
+        c3.markdown(kpi_card("목표 달성률(수량)", f"{tgt_rate:.1f}%" if tgt_rate else "—"), unsafe_allow_html=True)
+        c4.markdown(kpi_card("거래처 수", f"{df_jun['거래처'].nunique():,}개"), unsafe_allow_html=True)
+        c5.markdown(kpi_card("평균 할인율", f"{avg_disc:.1f}%" if avg_disc else "—"), unsafe_allow_html=True)
 
     st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
 
