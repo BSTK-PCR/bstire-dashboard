@@ -18,7 +18,6 @@ st.set_page_config(
 # ─────────────────────────────────────────────────────────────
 # 로고 base64 인코딩
 # ─────────────────────────────────────────────────────────────
-@st.cache_data(show_spinner=False)
 def _logo_b64() -> str:
     try:
         with open("logo.png", "rb") as f:
@@ -110,12 +109,22 @@ section[data-testid="stSidebar"] {
     gap: 18px;
     box-shadow: 0 2px 16px rgba(0,0,0,0.4);
 }
+.header-logo-box {
+    background: #ffffff;
+    border-radius: 6px;
+    padding: 6px 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.35);
+}
 .header-logo-img {
     width: 52px;
     height: 52px;
     object-fit: contain;
     flex-shrink: 0;
-    filter: brightness(1.05);
+    display: block;
 }
 .header-logo-fallback {
     display: inline-flex;
@@ -322,6 +331,18 @@ section[data-testid="stSidebar"] {
     color: #f1f5f9;
     line-height: 1.3;
     padding: 4px 0 10px 0;
+    display: flex;
+    align-items: flex-start;
+}
+
+/* ── 업로드 파일명 캡션 고정 높이 (4컬럼 정렬 일치) ── */
+.upload-file-caption {
+    min-height: 44px;
+    font-family: 'Barlow', 'Noto Sans KR', sans-serif;
+    font-size: 0.875rem;
+    color: rgba(250, 250, 250, 0.6);
+    line-height: 1.5;
+    margin-bottom: 4px;
     display: flex;
     align-items: flex-start;
 }
@@ -857,7 +878,7 @@ def render_dept_detail(dept: str, df_jun, sales, targets, df_may=None):
 def _header_banner(title: str, subtitle: str) -> str:
     logo = _logo_b64()
     if logo:
-        logo_html = f'<img class="header-logo-img" src="data:image/png;base64,{logo}" alt="Bridgestone">'
+        logo_html = f'<div class="header-logo-box"><img class="header-logo-img" src="data:image/png;base64,{logo}" alt="Bridgestone"></div>'
     else:
         logo_html = '<span style="font-family:\'Barlow Condensed\',\'Noto Sans KR\',sans-serif;font-weight:800;font-size:20px;color:#E2231A;letter-spacing:3px;flex-shrink:0;">BRIDGESTONE</span>'
     return f"""
@@ -947,7 +968,7 @@ if page == "파일 업로드":
                 '</div>',
                 unsafe_allow_html=True,
             )
-        st.caption("파일명: sales data_*.xlsx · 시트: Sheet1")
+        st.markdown('<div class="upload-file-caption">파일명: sales data_*.xlsx · 시트: Sheet1</div>', unsafe_allow_html=True)
         up_sales = st.file_uploader("영업 데이터 선택", type=["xlsx"], key="up_sales")
         if up_sales:
             raw = up_sales.read()
@@ -980,7 +1001,7 @@ if page == "파일 업로드":
                 '</div>',
                 unsafe_allow_html=True,
             )
-        st.caption("파일명: (PCR) Jun sales data_*.xlsx · 시트: Main, 6월 매출현황, 5월 매출현황")
+        st.markdown('<div class="upload-file-caption">파일명: (PCR) Jun sales data_*.xlsx · 시트: Main, 6월 매출현황, 5월 매출현황</div>', unsafe_allow_html=True)
         up_pcr = st.file_uploader("PCR 데이터 선택", type=["xlsx"], key="up_pcr")
         if up_pcr:
             raw = up_pcr.read()
@@ -1014,7 +1035,7 @@ if page == "파일 업로드":
                 '</div>',
                 unsafe_allow_html=True,
             )
-        st.caption("파일명: PCR - Jul26 prod order sheet_*.xlsx · 시트: Y26 Plan (2)")
+        st.markdown('<div class="upload-file-caption">파일명: PCR - Jul26 prod order sheet_*.xlsx · 시트: Y26 Plan (2)</div>', unsafe_allow_html=True)
         up_order = st.file_uploader("오더 시트 선택", type=["xlsx"], key="up_order")
         if up_order:
             raw = up_order.read()
@@ -1048,7 +1069,7 @@ if page == "파일 업로드":
                 '</div>',
                 unsafe_allow_html=True,
             )
-        st.caption("파일명: 2026 브리지스톤 PCR 타이어 가격표_Final.xlsx · 시트: RE, OE, RFT")
+        st.markdown('<div class="upload-file-caption">파일명: 2026 브리지스톤 PCR 타이어 가격표_Final.xlsx · 시트: RE, OE, RFT</div>', unsafe_allow_html=True)
         up_price = st.file_uploader("가격표 선택", type=["xlsx"], key="up_price")
         if up_price:
             raw = up_price.read()
@@ -1230,31 +1251,18 @@ elif page == "대시보드":
     # ── 탭3: 품목 ────────────────────────────────────────────
     with tab3:
         if df_jun is not None:
-            col1, col2 = st.columns(2)
-            with col1:
-                품목 = df_jun.groupby("품목분류")["QTY"].sum().reset_index()
-                fig = px.pie(
-                    품목, values="QTY", names="품목분류",
-                    title="품목분류별 판매 수량 비중",
-                    color_discrete_sequence=CHART_COLORS,
-                    hole=0.4,
-                )
-                fig.update_traces(textfont_color="white")
-                st.plotly_chart(dark_layout(fig), use_container_width=True)
-
-            with col2:
-                mtp = (
-                    df_jun.groupby("MTP분류")["QTY"]
-                    .sum().nlargest(10).reset_index().sort_values("QTY")
-                )
-                fig2 = px.bar(
-                    mtp, x="QTY", y="MTP분류", orientation="h",
-                    title="MTP분류별 판매 수량 TOP 10",
-                    color_discrete_sequence=[CHART_COLORS[1]],
-                    text_auto=True,
-                )
-                fig2.update_xaxes(title_text="수량(본)")
-                st.plotly_chart(dark_layout(fig2), use_container_width=True)
+            mtp = (
+                df_jun.groupby("MTP분류")["QTY"]
+                .sum().nlargest(10).reset_index().sort_values("QTY")
+            )
+            fig2 = px.bar(
+                mtp, x="QTY", y="MTP분류", orientation="h",
+                title="MTP분류별 판매 수량 TOP 10",
+                color_discrete_sequence=[CHART_COLORS[1]],
+                text_auto=True,
+            )
+            fig2.update_xaxes(title_text="수량(본)")
+            st.plotly_chart(dark_layout(fig2), use_container_width=True)
 
             col3, col4 = st.columns(2)
             with col3:
