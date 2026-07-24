@@ -444,8 +444,13 @@ def _to_float(val) -> float:
 
 @st.cache_data(show_spinner=False)
 def parse_sales(raw: bytes) -> pd.DataFrame:
-    df = pd.read_excel(BytesIO(raw), sheet_name="Sheet1")
+    xls = pd.ExcelFile(BytesIO(raw))
+    sheet = "Sheet1" if "Sheet1" in xls.sheet_names else xls.sheet_names[0]
+    df = pd.read_excel(xls, sheet_name=sheet)
     df.columns = df.columns.str.strip()
+    if "이익부서" not in df.columns:
+        st.error("영업 데이터에서 '이익부서' 컬럼을 찾지 못했습니다. 파일/시트 형식을 확인하세요.")
+        return pd.DataFrame()
     for col in ["할인율(%)", "6월 할인율(%)"]:
         if col in df.columns:
             df[col] = df[col].apply(_to_float)
@@ -458,10 +463,24 @@ def parse_sales(raw: bytes) -> pd.DataFrame:
 @st.cache_data(show_spinner=False)
 def parse_monthly(raw: bytes) -> dict[str, pd.DataFrame]:
     result = {}
-    targets = {"jun": "6월 매출현황(6.26)", "may": "5월 매출현황(5.31)"}
-    for key, sheet in targets.items():
+    xls = pd.ExcelFile(BytesIO(raw))
+
+    def _find_sheet(prefix: str) -> str | None:
+        key = prefix.replace(" ", "")
+        for name in xls.sheet_names:
+            if name.replace(" ", "").startswith(key):
+                return name
+        return None
+
+    # 날짜 접미사(예: (6.26))는 파일 갱신마다 바뀌므로 'N월 매출현황' 접두로 매칭
+    targets = {"jun": "6월 매출현황", "may": "5월 매출현황"}
+    for key, prefix in targets.items():
+        sheet = _find_sheet(prefix)
+        if sheet is None:
+            st.warning(f"[{prefix}] 시트를 찾지 못했습니다. (시트명 확인)")
+            continue
         try:
-            df = pd.read_excel(BytesIO(raw), sheet_name=sheet, header=1)
+            df = pd.read_excel(xls, sheet_name=sheet, header=1)
             df.columns = df.columns.str.strip()
             df = df[pd.to_numeric(df.get("NO", pd.Series(dtype=object)), errors="coerce").notna()]
             df["합계금액"] = pd.to_numeric(df["합계금액"], errors="coerce")
@@ -705,6 +724,8 @@ def get_data():
     pcr_raw = _get_raw("pcr_raw", PCR_KEY, LOCAL_PCR)
     order_raw = _get_raw("order_raw", ORDER_KEY, LOCAL_ORDER)
     sales = parse_sales(sales_raw) if sales_raw else None
+    if sales is not None and sales.empty:  # 파싱 실패(빈 df)는 None으로 정규화 → 하류 가드가 안전히 스킵
+        sales = None
     monthly = parse_monthly(pcr_raw) if pcr_raw else None
     targets = parse_main_targets(pcr_raw) if pcr_raw else None
     y26 = parse_y26_plan(order_raw) if order_raw else None
@@ -971,7 +992,7 @@ if page == "파일 업로드":
         st.markdown('<div class="upload-file-caption">파일명: sales data_*.xlsx · 시트: Sheet1</div>', unsafe_allow_html=True)
         up_sales = st.file_uploader("영업 데이터 선택", type=["xlsx"], key="up_sales")
         if up_sales:
-            raw = up_sales.read()
+            raw = up_sales.getvalue()
             st.session_state["sales_raw"] = raw
             parse_sales.clear()
             _supabase_upload(raw, SALES_KEY)
@@ -1004,7 +1025,7 @@ if page == "파일 업로드":
         st.markdown('<div class="upload-file-caption">파일명: (PCR) Jun sales data_*.xlsx · 시트: Main, 6월 매출현황, 5월 매출현황</div>', unsafe_allow_html=True)
         up_pcr = st.file_uploader("PCR 데이터 선택", type=["xlsx"], key="up_pcr")
         if up_pcr:
-            raw = up_pcr.read()
+            raw = up_pcr.getvalue()
             st.session_state["pcr_raw"] = raw
             parse_monthly.clear()
             parse_main_targets.clear()
@@ -1038,7 +1059,7 @@ if page == "파일 업로드":
         st.markdown('<div class="upload-file-caption">파일명: PCR - Jul26 prod order sheet_*.xlsx · 시트: Y26 Plan (2)</div>', unsafe_allow_html=True)
         up_order = st.file_uploader("오더 시트 선택", type=["xlsx"], key="up_order")
         if up_order:
-            raw = up_order.read()
+            raw = up_order.getvalue()
             st.session_state["order_raw"] = raw
             parse_y26_plan.clear()
             _supabase_upload(raw, ORDER_KEY)
@@ -1072,7 +1093,7 @@ if page == "파일 업로드":
         st.markdown('<div class="upload-file-caption">파일명: 2026 브리지스톤 PCR 타이어 가격표_Final.xlsx · 시트: RE, OE, RFT</div>', unsafe_allow_html=True)
         up_price = st.file_uploader("가격표 선택", type=["xlsx"], key="up_price")
         if up_price:
-            raw = up_price.read()
+            raw = up_price.getvalue()
             st.session_state["price_raw"] = raw
             _supabase_upload(raw, PRICE_KEY)
             st.success("가격표 로드 완료")
